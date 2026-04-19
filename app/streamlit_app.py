@@ -4,7 +4,7 @@ import numpy as np
 import os
 
 st.set_page_config(page_title="Bug Predictor", page_icon="🐞", layout="centered")
-st.title("🐞 Software Defect Prediction (v0.01)")
+st.title("🐞 Software Defect Prediction (v0.1)")
 st.markdown("### Enter code metrics below")
 
 # Get the directory where this script is located
@@ -27,22 +27,42 @@ if not os.path.exists(scaler_path):
 model = joblib.load(model_path)
 scaler = joblib.load(scaler_path)
 
-# Feature names (21 features from KC2 dataset)
-feature_names = ['loc', 'v(g)', 'ev(g)', 'iv(g)', 'n', 'v', 'l', 'd', 'i', 'e', 'b', 't',
-                 'lOCode', 'lOComment', 'lOBlank', 'lOCodeAndComment', 'uniq_Op', 'uniq_Opnd',
-                 'total_Op', 'total_Opnd', 'branchCount']
+# Feature names (21 features) with readable labels and tooltips
+feature_info = [
+    ("Lines of Code", "Total number of lines of code. Higher value = more complex."),
+    ("Cyclomatic Complexity", "Number of independent paths through code. Measures decision complexity."),
+    ("Essential Complexity", "Structured programming complexity. Higher = harder to restructure."),
+    ("Design Complexity", "How much the module's design is intertwined with others."),
+    ("Total Operators + Operands", "Sum of all operators and operands in the module."),
+    ("Halstead Volume", "Code volume (size * complexity). Higher = more information."),
+    ("Program Level", "Efficiency of the code. Higher is better."),
+    ("Difficulty", "How hard the code is to understand. Higher = more difficult."),
+    ("Intelligence", "Algorithm quality. Higher = better algorithm."),
+    ("Effort", "Estimated effort to write/understand the code."),
+    ("Number of Branches", "Total conditional branches (if, switch, loops)."),
+    ("Total Tokens", "Total number of tokens in the code."),
+    ("Executable Lines of Code", "Lines that actually execute (excluding comments, blanks)."),
+    ("Comment Lines", "Lines that are comments. Useful for documentation quality."),
+    ("Blank Lines", "Empty lines. Usually for readability."),
+    ("Lines with Code & Comment", "Lines that contain both code and a comment."),
+    ("Unique Operators", "Distinct operator types used (e.g., +, -, =, if)."),
+    ("Unique Operands", "Distinct variable/constant names used."),
+    ("Total Operators", "Total occurrences of all operators."),
+    ("Total Operands", "Total occurrences of all operands."),
+    ("Branch Count", "Total number of branches in control flow.")
+]
 
 with st.form("prediction_form"):
     st.subheader("📊 Code Metrics (normalized 0 to 1)")
     inputs = []
     col1, col2 = st.columns(2)
-    for i, name in enumerate(feature_names):
+    for i, (label, tooltip) in enumerate(feature_info):
         if i % 2 == 0:
             with col1:
-                val = st.slider(name, 0.0, 1.0, 0.5, key=name)
+                val = st.slider(label, 0.0, 1.0, 0.5, help=tooltip, key=label)
         else:
             with col2:
-                val = st.slider(name, 0.0, 1.0, 0.5, key=name)
+                val = st.slider(label, 0.0, 1.0, 0.5, help=tooltip, key=label)
         inputs.append(val)
     submitted = st.form_submit_button("🔍 Predict Defect", type="primary")
 

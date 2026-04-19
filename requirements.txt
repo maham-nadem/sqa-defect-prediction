@@ -1,0 +1,13 @@
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+streamlit
+joblib
+xgboost
+pandas
+imbalanced-learn   # future mein SMUSE ke liye, abhi nahi chahiyefastapi 
+uvicorn 
+fastapi
+uvicorn

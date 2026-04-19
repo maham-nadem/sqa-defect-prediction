@@ -1,69 +1,59 @@
 import streamlit as st
-import requests
-import json
+import joblib
+import numpy as np
+import os
 
-# Page config
 st.set_page_config(page_title="Bug Predictor", page_icon="🐞", layout="centered")
+st.title("🐞 Software Defect Prediction (KC2 Dataset)")
+st.markdown("### Enter code metrics below")
 
-# Title
-st.title("🐞 Software Defect Prediction")
-st.markdown("### Enter your code metrics below and find out if the module has a bug.")
+# Get the directory where this script is located
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
 
-# Input fields - simple and clean
+# Build paths to model and scaler
+model_path = os.path.join(parent_dir, "models", "model.pkl")
+scaler_path = os.path.join(parent_dir, "models", "scaler.pkl")
+
+# Check if files exist
+if not os.path.exists(model_path):
+    st.error(f"Model not found at {model_path}")
+    st.stop()
+if not os.path.exists(scaler_path):
+    st.error(f"Scaler not found at {scaler_path}")
+    st.stop()
+
+# Load model and scaler
+model = joblib.load(model_path)
+scaler = joblib.load(scaler_path)
+
+# Feature names (21 features from KC2 dataset)
+feature_names = ['loc', 'v(g)', 'ev(g)', 'iv(g)', 'n', 'v', 'l', 'd', 'i', 'e', 'b', 't',
+                 'lOCode', 'lOComment', 'lOBlank', 'lOCodeAndComment', 'uniq_Op', 'uniq_Opnd',
+                 'total_Op', 'total_Opnd', 'branchCount']
+
 with st.form("prediction_form"):
     st.subheader("📊 Code Metrics (normalized 0 to 1)")
-    
+    inputs = []
     col1, col2 = st.columns(2)
-    
-    with col1:
-        loc = st.slider("Lines of Code (LOC)", 0.0, 1.0, 0.5, help="Higher value = more code lines")
-        cyclo = st.slider("Cyclomatic Complexity", 0.0, 1.0, 0.5, help="Measures code complexity")
-        length = st.slider("Length", 0.0, 1.0, 0.5)
-        volume = st.slider("Volume", 0.0, 1.0, 0.5)
-        difficulty = st.slider("Difficulty", 0.0, 1.0, 0.5)
-    
-    with col2:
-        fan_in = st.slider("Fan-In", 0.0, 1.0, 0.5, help="Number of inputs")
-        fan_out = st.slider("Fan-Out", 0.0, 1.0, 0.5, help="Number of outputs")
-        num_ops = st.slider("Operators Count", 0.0, 1.0, 0.5)
-        num_opnds = st.slider("Operands Count", 0.0, 1.0, 0.5)
-        branch = st.slider("Branch Count", 0.0, 1.0, 0.5)
-    
+    for i, name in enumerate(feature_names):
+        if i % 2 == 0:
+            with col1:
+                val = st.slider(name, 0.0, 1.0, 0.5, key=name)
+        else:
+            with col2:
+                val = st.slider(name, 0.0, 1.0, 0.5, key=name)
+        inputs.append(val)
     submitted = st.form_submit_button("🔍 Predict Defect", type="primary")
 
-# When user clicks predict
 if submitted:
-    payload = {
-        "LOC": loc, "CYCLO": cyclo, "LENGTH": length,
-        "VOLUME": volume, "DIFFICULTY": difficulty,
-        "INT_FAN_IN": fan_in, "INT_FAN_OUT": fan_out,
-        "NUM_OPERATORS": num_ops, "NUM_OPERANDS": num_opnds,
-        "BRANCH_COUNT": branch
-    }
-    
-    try:
-        # Call API
-        response = requests.post("http://127.0.0.1:8001/predict", json=payload, timeout=5)
-        if response.status_code == 200:
-            result = response.json()
-            prob_defect = result["probability"]
-            is_defect = result["defect"]
-            
-            # Show result with big emoji
-            if is_defect == 1:
-                st.error(f"## ❌ **BUG LIKELY!**")
-                st.markdown(f"**Defect Probability:** {prob_defect:.1%}")
-                st.warning("⚠️ This module may contain bugs. Consider refactoring.")
-            else:
-                st.success(f"## ✅ **SAFE**")
-                st.markdown(f"**Defect Probability:** {1-prob_defect:.1%}")
-                st.info("👍 No bug predicted. Good quality code.")
-        
-        
-        else:
-          st.error("API error")
-          st.write("Status Code:", response.status_code)
-          st.write("Response:", response.text)
-    except Exception as e:
-        st.error(f"Cannot connect to API. Start API first: `python api.py`")
-        st.info("Keep the API terminal running and then refresh this app.")
+    input_array = np.array([inputs])
+    input_scaled = scaler.transform(input_array)
+    prob = model.predict_proba(input_scaled)[0][1]
+    pred = model.predict(input_scaled)[0]
+    if pred == 1:
+        st.error(f"## ❌ **BUG LIKELY!**\n\nDefect Probability: {prob:.1%}")
+        st.warning("⚠️ This module may contain bugs. Consider refactoring.")
+    else:
+        st.success(f"## ✅ **SAFE**\n\nNo Defect Probability: {1-prob:.1%}")
+        st.info("👍 No bug predicted. Good quality code.")

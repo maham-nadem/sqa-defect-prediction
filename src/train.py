@@ -1,55 +1,54 @@
-# ==================== CALIBRATED DEFECT PREDICTION MODEL ====================
+# ==================== TRAIN ON KC2 DATASET ====================
 import pandas as pd
+import numpy as np
 import os
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from sklearn.calibration import CalibratedClassifierCV
-from xgboost import XGBClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.preprocessing import StandardScaler
 import joblib
 
-# Load dataset
+# Load data
 data = pd.read_csv(r"C:\Users\Bajwa\Desktop\SQA\sqa-defect-prediction\data\data.csv")
-data = data.dropna()
 
-# Features and target
-target = "DEFECT_LABEL"
-X = data.drop(columns=[target])
-y = data[target]
+# Convert target 'problems' (no/yes) to binary: 0 = no defect, 1 = defect
+data['defect'] = (data['problems'] == 'yes').astype(int)
+data.drop('problems', axis=1, inplace=True)
+
+# Select relevant features (all numeric columns except defect)
+feature_cols = ['loc', 'v(g)', 'ev(g)', 'iv(g)', 'n', 'v', 'l', 'd', 'i', 'e', 'b', 't',
+                'lOCode', 'lOComment', 'lOBlank', 'lOCodeAndComment', 'uniq_Op', 'uniq_Opnd',
+                'total_Op', 'total_Opnd', 'branchCount']
+X = data[feature_cols]
+y = data['defect']
 
 # Train-test split
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-# Base XGBoost model
-base_model = XGBClassifier(
-    scale_pos_weight=2.07,
-    n_estimators=200,
-    max_depth=6,
-    learning_rate=0.1,
-    eval_metric='logloss',
-    random_state=42
-)
-base_model.fit(X_train, y_train)
+# Normalize features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
-# Calibrate probabilities
-print("Calibrating probabilities...")
-calibrated_model = CalibratedClassifierCV(base_model, method='sigmoid', cv=5)
-calibrated_model.fit(X_train, y_train)
+# Train Random Forest
+model = RandomForestClassifier(n_estimators=200, random_state=42)
+model.fit(X_train_scaled, y_train)
 
 # Evaluate
-y_pred = calibrated_model.predict(X_test)
+y_pred = model.predict(X_test_scaled)
 print(f"Accuracy: {accuracy_score(y_test, y_pred):.3f}")
-print(classification_report(y_test, y_pred, target_names=['No Defect', 'Defect']))
+print(classification_report(y_test, y_pred))
 
-# Save model
-models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
-os.makedirs(models_dir, exist_ok=True)
-model_path = os.path.join(models_dir, "model.pkl")
-joblib.dump(calibrated_model, model_path)
-print(f"Model saved to {model_path}")
-
-# Test zero input
-zero_input = pd.DataFrame([[0.0]*10], columns=X.columns)
-zero_prob = calibrated_model.predict_proba(zero_input)[0][1]
+# Test zero input (all features 0) and high input (all features 1)
+zero_input = np.zeros((1, len(feature_cols)))
+high_input = np.ones((1, len(feature_cols)))
+zero_prob = model.predict_proba(zero_input)[0][1]
+high_prob = model.predict_proba(high_input)[0][1]
 print(f"Zero input defect probability: {zero_prob:.3f}")
+print(f"High input defect probability: {high_prob:.3f}")
+
+# Save model and scaler
+os.makedirs("models", exist_ok=True)
+joblib.dump(model, "models/model.pkl")
+joblib.dump(scaler, "models/scaler.pkl")
+print("Model and scaler saved to models/")

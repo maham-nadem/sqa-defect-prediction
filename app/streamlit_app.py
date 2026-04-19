@@ -4,7 +4,7 @@ import numpy as np
 import os
 
 st.set_page_config(page_title="Bug Predictor", page_icon="🐞", layout="centered")
-st.title("🐞 Software Defect Prediction (KC2 Dataset)")
+st.title("🐞 Software Defect Prediction (v0.01)")
 st.markdown("### Enter code metrics below")
 
 # Get the directory where this script is located
